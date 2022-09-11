@@ -136,6 +136,58 @@ class AuthService {
   }
 
   /*
+   * Service Implementation for refreshing access token.
+   * @param refreshTokenDto DTO Implementation for refreshing access token.
+   */
+  Future<Token> refreshTokens(RefreshTokenDto refreshTokenDto) async {
+    try {
+      // Send request to server for refreshing tokens.
+      Response response = await serverDevApi.publicApi.post(
+        "v1/auth/refresh",
+        data: refreshTokenDto.toJson(),
+      );
+
+      // Handling Errors.
+      if (response.statusCode! >= 400 && response.statusCode! < 500) {
+        Map<String, dynamic> body = json.decode(response.data);
+        throw AuthException(
+            message: AuthError.values.firstWhere((error) =>
+                error.toString().substring("AuthError.".length) ==
+                body['message']));
+      } else if (response.statusCode! >= 500) {
+        Map<String, dynamic> body = json.decode(response.data);
+
+        log.e(body["message"]);
+
+        throw GeneralException(
+          message: GeneralError.SOMETHING_WENT_WRONG,
+        );
+      }
+
+      // Decoding tokens from JSON.
+      Token token = Token.fromJson(json.decode(response.data));
+
+      // Saving tokens to storage.
+      _tokenService.saveTokenToDevice(token);
+
+      // Returning token.
+      return token;
+    } on SocketException {
+      log.wtf("Dedicated Server Offline");
+
+      throw GeneralException(
+        message: GeneralError.OFFLINE,
+      );
+    } on TimeoutException {
+      log.wtf("Dedicated Server Offline");
+
+      throw GeneralException(
+        message: GeneralError.OFFLINE,
+      );
+    }
+  }
+
+  /*
    * Service implementation for saving user in offline storage.
    */
   void syncAccountToOfflineDb(Account account) {
