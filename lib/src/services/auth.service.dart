@@ -16,6 +16,72 @@ class AuthService {
   final TokenService _tokenService = TokenService();
 
   /*
+   * Service Implementation for fetching logged in user details.
+   */
+  Future<Account> fetchLoggedInAccount() async {
+    try {
+      // Send request to server to fetch logged in account.
+      Response response = await serverDevApi.securedApi.get(
+        "v1/account",
+      );
+
+      // Handling Errors.
+      if (response.statusCode! >= 400 && response.statusCode! < 500) {
+        Map<String, dynamic> body = json.decode(response.data);
+        throw AuthException(
+            message: AuthError.values.firstWhere((error) =>
+                error.toString().substring("AuthError.".length) ==
+                body['message']));
+      } else if (response.statusCode! >= 500) {
+        Map<String, dynamic> body = json.decode(response.data);
+
+        log.e(body["message"]);
+
+        throw GeneralException(
+          message: GeneralError.SOMETHING_WENT_WRONG,
+        );
+      }
+
+      // Decoding account from JSON.
+      Account account = Account.fromJson(json.decode(response.data));
+
+      // Saving account details to storage.
+      syncAccountToOfflineDb(account);
+
+      // Returning account.
+      return account;
+    } on SocketException {
+      log.wtf("Dedicated Server Offline");
+
+      // Fetch account from Offline Storage.
+      Account? dbAccount = fetchAccountFromOfflineDb();
+
+      // Return account if logged in else throw error.
+      if (dbAccount != null) {
+        return dbAccount;
+      } else {
+        throw AuthException(
+          message: AuthError.UNAUTHENTICATED,
+        );
+      }
+    } on TimeoutException {
+      log.wtf("Dedicated Server Offline");
+
+      // Fetch account from Offline Storage.
+      Account? dbAccount = fetchAccountFromOfflineDb();
+
+      // Return account if logged in else throw error.
+      if (dbAccount != null) {
+        return dbAccount;
+      } else {
+        throw AuthException(
+          message: AuthError.UNAUTHENTICATED,
+        );
+      }
+    }
+  }
+
+  /*
    * Service Implementation for account registration.
    * @param createAccountDto DTO Implementation for account registration.
    */
