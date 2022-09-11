@@ -7,11 +7,13 @@ import 'package:commons/src/dtos/dto.dart';
 import 'package:commons/src/enums/enums.dart';
 import 'package:commons/src/exceptions/exceptions.dart';
 import 'package:commons/src/models/models.dart';
+import 'package:commons/src/services/services.dart';
 import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
 
 class AuthService {
   final Box<Account> _accountDb = Hive.box<Account>(LOGGED_IN_USER_BOX);
+  final TokenService _tokenService = TokenService();
 
   /*
    * Service Implementation for account registration.
@@ -19,9 +21,10 @@ class AuthService {
    */
   Future<Account> registerNewAccount(CreateAccountDto createAccountDto) async {
     try {
-      // Fetch user details from the server
-      Response response = await serverDevApi.publicApi.get(
+      // Send request to server to register new account.
+      Response response = await serverDevApi.publicApi.post(
         "v1/account",
+        data: createAccountDto.toJson(),
       );
 
       // Handling Errors.
@@ -77,6 +80,58 @@ class AuthService {
           message: AuthError.UNAUTHENTICATED,
         );
       }
+    }
+  }
+
+  /*
+   * Service Implementation for account login.
+   * @param loginAccountDto DTO Implementation for account login.
+   */
+  Future<Token> loginAccount(LoginAccountDto loginAccountDto) async {
+    try {
+      // Send request to server for login tokens.
+      Response response = await serverDevApi.publicApi.post(
+        "v1/auth/login",
+        data: loginAccountDto.toJson(),
+      );
+
+      // Handling Errors.
+      if (response.statusCode! >= 400 && response.statusCode! < 500) {
+        Map<String, dynamic> body = json.decode(response.data);
+        throw AuthException(
+            message: AuthError.values.firstWhere((error) =>
+                error.toString().substring("AuthError.".length) ==
+                body['message']));
+      } else if (response.statusCode! >= 500) {
+        Map<String, dynamic> body = json.decode(response.data);
+
+        log.e(body["message"]);
+
+        throw GeneralException(
+          message: GeneralError.SOMETHING_WENT_WRONG,
+        );
+      }
+
+      // Decoding tokens from JSON.
+      Token token = Token.fromJson(json.decode(response.data));
+
+      // Saving tokens to storage.
+      _tokenService.saveTokenToDevice(token);
+
+      // Returning token.
+      return token;
+    } on SocketException {
+      log.wtf("Dedicated Server Offline");
+
+      throw GeneralException(
+        message: GeneralError.OFFLINE,
+      );
+    } on TimeoutException {
+      log.wtf("Dedicated Server Offline");
+
+      throw GeneralException(
+        message: GeneralError.OFFLINE,
+      );
     }
   }
 
