@@ -19,7 +19,7 @@ class TokenService {
     log.i("Saved Token to Hive DB");
   }
 
-  Token fetchActivitiesFromDevice() {
+  Token fetchTokensFromDevice() {
     log.i("Fetching Token from Hive DB");
     return _tokenDb.get(
       TOKEN,
