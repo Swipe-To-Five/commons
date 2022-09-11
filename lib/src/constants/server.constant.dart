@@ -1,10 +1,14 @@
 import 'package:commons/src/constants/logger.constant.dart';
+import 'package:commons/src/models/models.dart';
+import 'package:commons/src/services/services.dart';
 import 'package:dio/dio.dart';
 
 class Api {
   late final Dio publicApi;
 
   late final Dio securedApi;
+
+  final TokenService _tokenService = TokenService();
 
   Api({required String apiUrl}) {
     publicApi = Dio(
@@ -33,7 +37,11 @@ class Api {
           handler.next(error);
         }
       }, onRequest: (options, handler) {
-        // Attach Access Tokens Here...
+        Token token = _tokenService.fetchActivitiesFromDevice();
+
+        if (token.accessToken.isNotEmpty) {
+          options.headers['Authorization'] = "Bearer ${token.accessToken}";
+        }
 
         return handler.next(options);
       }),
